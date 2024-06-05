@@ -1,0 +1,56 @@
+# UNAB
+Codigo AMPL trabajo de titulación
+# Conjuntos
+set Actividades; # Conjunto de actividades del ciclo de avance en desarrollos horizontales
+set Frentes; # Conjunto de frentes de avance
+set Dias; # Conjunto de días de trabajo
+set Horas; # Conjunto de horas de trabajo
+# Parámetros
+param DA{Horas} binary; # Detenciones autorizadas: 1 si la hora h corresponde a una detención autorizada, 0 en caso contrario
+param HT{Horas} binary; # Horario de tronadura: 1 si la hora h corresponde a un horario de tronadura, 0 en caso contrario
+param HC{Horas} binary; # Horario de carguío: 1 si la hora h es un horario de carguío de explosivos, 0 en caso contrario
+param D{Actividades} >= 1; # Duración de actividades: horas que se debe ejecutar cierta actividad para ser completada
+param R{Actividades} >= 1; # Equipos disponibles: número de actividades que se pueden ejecutar simultáneamente
+param L := 9999; # Número positivo grande
+# Variables de decisión
+var S{Dias, Horas, Actividades, Frentes} binary; # Inicio de actividad: 1 si la actividad a se inicia el día d a la hora h' <= h en la frente f, 0 en caso contrario
+var E{Dias, Horas, Actividades, Frentes} binary; # Término de actividad: 1 si la actividad a se termina el día d a la hora h' <= h en la frente f, 0 en caso contrario
+var I{Dias, Actividades, Frentes} binary; # Estado de frente: 1 si al comienzo del día d el frente f tiene completada la actividad a, 0 en caso contrario
+var TA{Frentes} integer; # Tiempo de avance: día de término del frente de avance f
+var TP integer; # Tiempo de programa: día de término del programa
+var M {Frentes} binary; #Planificación de largo plazo
+# Restricciones
+subject to Actividades_UnInicio_UnTermino {d in Dias, h in Horas, a in Actividades, f in Frentes: h in 1..11}:
+S[d,h,a,f] <= S[d,h+1,a,f];
+subject to Actividades_UnInicio2_UnTermino2 {d in Dias, h in Horas, a in Actividades, f in Frentes: h in 1..11}:
+E[d,h,a,f] <= E[d,h+1,a,f];
+subject to Precedencia_Actividades {d in Dias, h in Horas, a in Actividades, f in Frentes}:
+E[d,h,a,f] + I[d,a,f] >= S[d,h,a,f];
+subject to Precedencia_Frentes {d in Dias, h in Horas, a1 in Actividades, a2 in Actividades, f in Frentes}: 
+sum{d_prime in Dias, h_prime in Horas, a2_prime in Actividades, f_prime in Frentes: d_prime <= d} S[d_prime,h_prime,a2_prime,f] >= M[f] * S[d,h,a1,f];
+subject to Duracion_Actividades {d in Dias, h in Horas, a in Actividades, f in Frentes}:
+sum{f_prime in Frentes} (S[d,h,a,f_prime] - E[d,h,a,f_prime]) * DA[h] = D[a] * S[d,h,a,f];
+subject to Disponibilidad_Equipos {d in Dias, h in Horas, a in Actividades, f in Frentes}:
+sum{f_prime in Frentes} (S[d,h,a,f_prime] - E[d,h,a,f_prime]) <= R[a];
+subject to Programacion_Tronaduras {d in Dias, h in Horas, ac in Actividades, f in Frentes}:
+S[d,h,ac,f] - E[d,h,ac,f] <= HC[h];
+subject to Programacion_Tronaduras2 {d in Dias, h in Horas, at in Actividades, f in Frentes}:
+S[d,h,at,f] - E[d,h,at,f] <= HT[h];
+subject to Aislacion_Tronadura {d in Dias, h in Horas, a2 in Actividades, f in Frentes}:
+L * (1 - (S[d,h,a2,f] - E[d,h,a2,f])) >= sum{a_prime in Actividades, f_prime in Frentes} (S[d,h,a_prime,f_prime] - E[d,h,a_prime,f_prime]);
+subject to Estado_Inicial_Frente {a in Actividades, f in Frentes}:
+I[1,a,f] = I[0,a,f]; DEFINIR COMO PARAMETRO
+subject to Estado_Inicial_Frente2 {d in Dias, a in Actividades, b in Actividades, f in Frentes, h in Horas: d in }:
+I[d+1,a,f] = S[d,h,a,f] - S[d,h,b,f] + I[d,a,f];
+subject to Cumplimiento_Largo_Plazo {f in Frentes, h in Horas, a2 in Actividades}:
+sum{d in Dias} S[d,h,a2,f] = M[f];
+subject to Tiempo_Avances {f in Frentes, h in Horas, a2 in Actividades}:
+sum{d in Dias} E[d,h,a2,f] <= TA[f];
+subject to Tiempo_Programa:
+sum{f in Frentes, d in Dias, h in Horas, a2 in Actividades} E[d,h,a2,f] <= TP;
+# Función objetivo
+minimize Objetivo:
+# Criterio 1: Minimizar el día de término del programa
+TP +
+# Criterio 2: Priorizar el menor tiempo de término de cada frente
+sum{f in Frentes} TA[f];
